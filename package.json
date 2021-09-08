@@ -1,0 +1,23 @@
+{
+  "name": "mps-auth-proxy",
+  "version": "1.0.0",
+  "description": "MPS Auth Proxy",
+  "main": "dist/app.js",
+  "scripts": {
+    "start": "tsc && node dist/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Strumenta",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/express": "^4.17.13",
+    "eslint": "^7.32.0",
+    "ts-node": "^10.2.1",
+    "typescript": "^4.4.2"
+  },
+  "dependencies": {
+    "axios": "^0.21.4",
+    "eventsource": "^1.1.0",
+    "express": "^4.17.1"
+  }
+}
