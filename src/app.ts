@@ -3,7 +3,6 @@ import {loadConfiguration} from "./configuration";
 const express = require('express')
 const axios = require('axios')
 const app = express()
-const port = 3000
 const bodyParser = require('body-parser');
 
 import {Request, Response} from 'express';
@@ -76,8 +75,8 @@ app.use((req,res,next)=>{
     }
 })
 
-app.listen(port, () => {
-    console.log(`MPS Auth Proxy listening at http://localhost:${port}`)
+app.listen(configuration.port, () => {
+    console.log(`MPS Auth Proxy listening at http://localhost:${configuration.port}`)
 })
 
 function eventsHandler(request, response, next) {
@@ -111,15 +110,5 @@ function eventsHandler(request, response, next) {
 app.get('/subscribe/:key', eventsHandler);
 
 const router = express.Router();
-
-router.use(function(req, res, next) {
-    if (!req.route) {
-        console.log("NOT FOUND", req.method, req.url)
-        return next(new Error('404'));
-    } else {
-        console.log("FOUND");
-    }
-    next();
-});
 
 app.use(router);

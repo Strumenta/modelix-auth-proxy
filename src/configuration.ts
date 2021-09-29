@@ -1,10 +1,14 @@
 import {TokenValidator, UserInfoTokenValidator} from "./verification";
 
+const DEFAULT_PORT = 3000
+
 export class Configuration {
+    port: number
     tokenValidator: TokenValidator
     mmsURL: string
 
-    constructor(tokenValidator: TokenValidator, mmsURL: string) {
+    constructor(port: number, tokenValidator: TokenValidator, mmsURL: string) {
+        this.port = port
         this.tokenValidator = tokenValidator
         this.mmsURL = mmsURL
     }
@@ -16,6 +20,8 @@ export function loadConfiguration() : Configuration {
 
     let conftext = fs.readFileSync(confFile);
     let confdata = JSON.parse(conftext);
+
+    const port = confdata["port"] || DEFAULT_PORT
 
     const mmsURL = confdata["mmsURL"];
     if (mmsURL == null) {
@@ -39,5 +45,5 @@ export function loadConfiguration() : Configuration {
     } else {
         throw new Error(`Unknown token validator type: ${tokenValidatorType}`)
     }
-    return new Configuration(tokenValidator, mmsURL)
+    return new Configuration(port, tokenValidator, mmsURL)
 }
