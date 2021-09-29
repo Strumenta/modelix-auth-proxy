@@ -1,107 +1,83 @@
+import {loadConfiguration} from "./configuration";
+
 const express = require('express')
 const axios = require('axios')
 const app = express()
 const port = 3000
 const bodyParser = require('body-parser');
 
-//const EventSource = require('eventsource');
-
+import {Request, Response} from 'express';
 const esc = require("eventsource");
-
-//app.use(bodyParser.urlencoded({ extended: true }));
-//app.use(bodyParser.json());
-//app.use(bodyParser.raw());
 app.use(bodyParser.text({limit: '50mb', extended: true}));
 
-const mmsURL = 'https://dsl-modelix.siginet.lu';
+const configuration = loadConfiguration()
 
-app.get('/', (req, res) => {
-    //console.log("GET on /")
-    axios
-        .get(`${mmsURL}/`)
-        .then(resMss => {
-            const body = resMss.data as string
-            //console.log("sending", body)
-            res.status(200).send(body)
-        })
-        .catch(error => {
-            console.error(error)
-        })
-})
+/**
+ * Verify if the request has a valid token.
+ */
+async function validateRequest(req: Request, res: Response, reqProcessing: (req, res) => void) {
+    const authorizationHeader = req.header("Authorization")
+    if (authorizationHeader == null || !(authorizationHeader.startsWith("Bearer "))) {
+        res.status(403)
+        return
+    }
+    const token = authorizationHeader.substr("Bearer ".length)
+    const isTokenValid = await configuration.tokenValidator.checkToken(token)
+    if (isTokenValid) {
+        reqProcessing(req, res)
+    } else {
+        res.status(403)
+    }
+}
 
-app.get('/get/:key', (req, res) => {
-    const key = req.param("key");
-    //console.log("getting", key)
-    axios
-        .get(`${mmsURL}/get/${key}`)
-        .then(resMss => {
-            const body = resMss.data as string
-            //console.log("sending", body)
-            res.status(200).send(body)
-        })
-        .catch(error => {
-            console.error(error)
-        })
-})
+async function forwardRequest(req: Request, res: Response) {
+    const forwardURL = `${configuration.mmsURL}${req.path}`
+    if (req.method === 'GET') {
+        axios
+            .get(forwardURL)
+            .then(resMss => {
+                const body = resMss.data as string
+                res.status(200).send(body)
+            })
+            .catch(error => {
+                console.error(error)
+            })
+    } else if (req.method === 'PUT') {
+        axios
+            .put(forwardURL)
+            .then(resMss => {
+                const body = resMss.data as string
+                res.status(200).send(body)
+            })
+            .catch(error => {
+                console.error(error)
+            })
+    } else if (req.method === 'POST') {
+        axios
+            .post(forwardURL)
+            .then(resMss => {
+                const body = resMss.data as string
+                res.status(200).send(body)
+            })
+            .catch(error => {
+                console.error(error)
+            })
+    } else {
+        throw new Error(`Unsupported method ${req.method}`)
+    }
+}
 
-app.get('/getEmail', (req, res) => {
-    axios
-        .get(`${mmsURL}/getEmail`)
-        .then(resMss => {
-            const body = resMss.data as string
-            //console.log("sending", body)
-            res.status(200).send(body)
-        })
-        .catch(error => {
-            console.error(error)
-        })
-})
-
-app.put('/getAll', (req, res) => {
-    const reqBody = req.body;
-    //console.log("getAll", reqBody)
-    axios
-        .put(`${mmsURL}/getAll`, reqBody)
-        .then(resMss => {
-            const body = resMss.data as string
-            //console.log("sending", body)
-            res.status(200).send(body)
-        })
-        .catch(error => {
-            console.error(error)
-        })
-})
-
-app.put('/putAll', (req, res) => {
-    const reqBody = req.body;
-    //console.log("getAll", reqBody)
-    axios
-        .put(`${mmsURL}/putAll`, reqBody)
-        .then(resMss => {
-            const body = resMss.data as string
-            //console.log("sending", body)
-            res.status(200).send(body)
-        })
-        .catch(error => {
-            console.error(error)
-        })
-})
-
-app.post('/counter/clientId', (req, res) => {
-    axios
-        .post(`${mmsURL}/counter/clientId`)
-        .then(resMss => {
-            const body = (resMss.data as number).toString()
-            //console.log("sending", body)
-            res.status(200).send(body)
-        })
-        .catch(error => {
-            console.error(error)
-        })
+app.use((req,res,next)=>{
+    // This is treated specially as SSE are a bit different, as far as I understand
+    if (req.path.startsWith("/subscribe/")) {
+        next()
+    } else {
+        validateRequest(req, res, (req, res) => forwardRequest(req, res))
+    }
 })
 
 app.listen(port, () => {
-    console.log(`Example app listening at http://localhost:${port}`)
+    console.log(`MPS Auth Proxy listening at http://localhost:${port}`)
 })
 
 function eventsHandler(request, response, next) {
@@ -114,11 +90,10 @@ function eventsHandler(request, response, next) {
 
     const key = request.param("key");
 
-    const es = new esc(`${mmsURL}/subscribe/${key}`);
+    const es = new esc(`${configuration.mmsURL}/subscribe/${key}`);
 
     const listener = function (event) {
         const type = event.type;
-        // console.log("got event", event);
         if (type === "message") {
             response.write(`data: ${event.data}\n\n`);
         }
@@ -128,23 +103,8 @@ function eventsHandler(request, response, next) {
     es.addEventListener('error', listener);
     es.addEventListener('result', listener);
 
-
-    // const data = `data: ${JSON.stringify(facts)}\n\n`;
-    //
-    // response.write(data);
-    //
-    // const clientId = Date.now();
-    //
-    // const newClient = {
-    //     id: clientId,
-    //     response
-    // };
-    //
-    // clients.push(newClient);
-
     request.on('close', () => {
-        // console.log(`${clientId} Connection closed`);
-        // clients = clients.filter(client => client.id !== clientId);
+
     });
 }
 
