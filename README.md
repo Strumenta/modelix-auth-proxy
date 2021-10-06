@@ -19,13 +19,19 @@ Example of a configuration file:
   "port": 3400,
   "tokenValidator": {
     "type": "UserInfoTokenValidator",
-    "address": "https://accounts-ci.siginet.lu/connect/userinfo"
+    "address": "https://www.googleapis.com/oauth2/v3/userinfo"
   },
-  "mmsURL": "https://dsl-modelix.siginet.lu"
+  "mmsURL": "https://myprotectedmodelserver.com"
 }
 ```
 
 The port specified in the configuration file can be overriden by using the environment variable AUTH_PORT.
+
+## Values extracted from token
+
+Depending of the OAuth configuration we may be able or not to get the name of the user and its email.
+If we are able to get them, we will forward them, otherwise we will not.
+The name will be sent as the header `X-Forwarded-For` while the email will be sent as the header `X-Forwarded-Email`.
 
 ## Routes
 

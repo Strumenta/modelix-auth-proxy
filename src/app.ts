@@ -39,7 +39,7 @@ async function validateRequest(req: Request, res: Response,
     }
 }
 
-async function forwardRequest(req: Request, res: Response) {
+async function forwardRequest(req: Request, res: Response, validationResult: ValidationResult) {
     const forwardURL = `${configuration.mmsURL}${req.path}`
     let response : Promise<AxiosResponse<any>>
     if (req.method === 'GET') {
@@ -53,6 +53,12 @@ async function forwardRequest(req: Request, res: Response) {
     }
     response.then(resMss => {
         const body = resMss.data as string
+        if (validationResult.name != null) {
+            res.header("X-Forwarded-For", validationResult.name);
+        }
+        if (validationResult.email != null) {
+            res.header("X-Forwarded-Email", validationResult.email);
+        }
         res.status(200).send(body)
     })
     .catch(error => {
@@ -107,7 +113,7 @@ function main() {
             next()
         } else {
             configuration.log(`processing ${req.method} request to ${req.path}`)
-            void validateRequest(req, res, (req, res) => forwardRequest(req, res))
+            void validateRequest(req, res, forwardRequest)
         }
     })
 
