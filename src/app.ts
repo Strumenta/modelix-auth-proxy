@@ -52,7 +52,11 @@ async function forwardRequest(req: Request, res: Response, validationResult: Val
         throw new Error(`Unsupported method ${req.method}`)
     }
     response.then(resMss => {
-        const body = resMss.data as string
+        let body = resMss.data
+        if (typeof body == "number") {
+            body = body.toString();
+        }
+        configuration.log(`  received body: ${body} (type: ${typeof body})`)
         if (validationResult.name != null) {
             res.header("X-Forwarded-For", validationResult.name);
         }
@@ -103,7 +107,7 @@ function main() {
         process.exit(1)
     }
 
-    app.use(bodyParser.text({limit: '50mb', extended: true}));
+    app.use(bodyParser.text({type: '*/*', limit: '50mb', extended: true}));
     configuration = loadConfiguration(options.conffile)
     app.use((req,res,next)=>{
         // This is treated specially as SSE are a bit different, as far as I understand
