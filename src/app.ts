@@ -6,68 +6,58 @@ const app = express()
 const bodyParser = require('body-parser');
 
 import {Request, Response} from 'express';
+import {AxiosResponse} from "axios";
+import {failedValidation, ValidationResult} from "./token_validators";
 const esc = require("eventsource");
 const stdio = require('stdio');
 const fs = require('fs');
 
 let configuration : Configuration | undefined = undefined
 
+type RequestProcessing = (req: Request, res: Response, validationResult: ValidationResult) => void
+
 /**
  * Verify if the request has a valid token.
  */
-async function validateRequest(req: Request, res: Response, reqProcessing: (req, res) => void) {
+async function validateRequest(req: Request, res: Response,
+                               validatedRequestProcessing: RequestProcessing,
+                               rejectedRequestProcessing: RequestProcessing = (req, res, validRes)=> res.status(403)) : Promise<void> {
     const authorizationHeader = req.header("Authorization")
     if (authorizationHeader == null || !(authorizationHeader.startsWith("Bearer "))) {
         configuration.log(`  authorization header not present or not valid -> rejecting`)
-        res.status(403)
+        rejectedRequestProcessing(req, res, failedValidation())
         return
     }
     const token = authorizationHeader.substr("Bearer ".length)
-    const isTokenValid = await configuration.tokenValidator.checkToken(token)
-    if (isTokenValid) {
+    const validationResult : ValidationResult = await configuration.tokenValidator.checkToken(token, configuration)
+    if (validationResult.success) {
         configuration.log(`  token valid -> forwarding`)
-        reqProcessing(req, res)
+        validatedRequestProcessing(req, res, validationResult)
     } else {
         configuration.log(`  token not valid -> rejecting`)
-        res.status(403)
+        rejectedRequestProcessing(req, res, failedValidation())
     }
 }
 
 async function forwardRequest(req: Request, res: Response) {
     const forwardURL = `${configuration.mmsURL}${req.path}`
+    let response : Promise<AxiosResponse<any>>
     if (req.method === 'GET') {
-        axios
-            .get(forwardURL)
-            .then(resMss => {
-                const body = resMss.data as string
-                res.status(200).send(body)
-            })
-            .catch(error => {
-                console.error(error)
-            })
+        response = axios.get(forwardURL)
     } else if (req.method === 'PUT') {
-        axios
-            .put(forwardURL)
-            .then(resMss => {
-                const body = resMss.data as string
-                res.status(200).send(body)
-            })
-            .catch(error => {
-                console.error(error)
-            })
+        response = axios.put(forwardURL)
     } else if (req.method === 'POST') {
-        axios
-            .post(forwardURL)
-            .then(resMss => {
-                const body = resMss.data as string
-                res.status(200).send(body)
-            })
-            .catch(error => {
-                console.error(error)
-            })
+        response = axios.post(forwardURL)
     } else {
         throw new Error(`Unsupported method ${req.method}`)
     }
+    response.then(resMss => {
+        const body = resMss.data as string
+        res.status(200).send(body)
+    })
+    .catch(error => {
+        console.error(error)
+    })
 }
 
 function eventsHandler(request, response, next) {
@@ -113,9 +103,11 @@ function main() {
         // This is treated specially as SSE are a bit different, as far as I understand
         if (req.path.startsWith("/subscribe/")) {
             next()
+        } else if (req.path === "/checktoken") {
+            next()
         } else {
             configuration.log(`processing ${req.method} request to ${req.path}`)
-            validateRequest(req, res, (req, res) => forwardRequest(req, res))
+            void validateRequest(req, res, (req, res) => forwardRequest(req, res))
         }
     })
 
@@ -123,6 +115,15 @@ function main() {
         configuration.log(`Modelix Auth Proxy listening at http://localhost:${configuration.port}`)
     })
     app.get('/subscribe/:key', eventsHandler);
+    app.get('/checktoken', (req, res, next) => {
+        void validateRequest(req, res,
+            (req, res, validationResult) => {
+                res.status(200).send(`The token is valid: ${JSON.stringify(validationResult)}`)
+            },
+            (req, res, validationResult) => {
+                res.status(200).send(`The token is not valid`)
+            })
+    });
     const router = express.Router();
     app.use(router);
 }

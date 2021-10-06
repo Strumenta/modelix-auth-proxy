@@ -26,3 +26,7 @@ Example of a configuration file:
 ```
 
 The port specified in the configuration file can be overriden by using the environment variable AUTH_PORT.
+
+## Routes
+
+There is a special route to check tokens. It could be useful for debugging. The route is a GET to `/checktoken`.

@@ -1,4 +1,4 @@
-import {TokenValidator, UserInfoTokenValidator} from "./verification";
+import {TokenValidator, UserInfoTokenValidator} from "./token_validators";
 const fs = require('fs');
 
 const DEFAULT_PORT = 3000
