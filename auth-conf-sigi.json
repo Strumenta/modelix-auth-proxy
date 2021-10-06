@@ -1,0 +1,9 @@
+{
+  "port": 3400,
+  "tokenValidator": {
+    "type": "UserInfoTokenValidator",
+    "address": "https://accounts-ci.siginet.lu/connect/userinfo"
+  },
+  "verbose": true,
+  "mmsURL": "https://dsl-modelix.siginet.lu"
+}

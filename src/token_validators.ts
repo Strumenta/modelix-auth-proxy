@@ -58,9 +58,11 @@ export class UserInfoTokenValidator implements TokenValidator {
                     }
                 })
                 .then(resMss => {
-                    const body = resMss.data as string
+                    const body = resMss.data
+                    const name = body["name"]
+                    const email = body["email"]
                     validTokens.push(token);
-                    resolve(successfulValidation());
+                    resolve(successfulValidation(email, name));
                     return;
                 })
                 .catch(error => {
