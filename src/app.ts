@@ -1,15 +1,16 @@
-import {loadConfiguration} from "./configuration";
+import {Configuration, loadConfiguration} from "./configuration";
 
-const express = require('express')
+import express from "express";
 const axios = require('axios')
 const app = express()
 const bodyParser = require('body-parser');
 
 import {Request, Response} from 'express';
 const esc = require("eventsource");
-app.use(bodyParser.text({limit: '50mb', extended: true}));
+const stdio = require('stdio');
+const fs = require('fs');
 
-const configuration = loadConfiguration()
+let configuration : Configuration | undefined = undefined
 
 /**
  * Verify if the request has a valid token.
@@ -17,14 +18,17 @@ const configuration = loadConfiguration()
 async function validateRequest(req: Request, res: Response, reqProcessing: (req, res) => void) {
     const authorizationHeader = req.header("Authorization")
     if (authorizationHeader == null || !(authorizationHeader.startsWith("Bearer "))) {
+        configuration.log(`  authorization header not present or not valid -> rejecting`)
         res.status(403)
         return
     }
     const token = authorizationHeader.substr("Bearer ".length)
     const isTokenValid = await configuration.tokenValidator.checkToken(token)
     if (isTokenValid) {
+        configuration.log(`  token valid -> forwarding`)
         reqProcessing(req, res)
     } else {
+        configuration.log(`  token not valid -> rejecting`)
         res.status(403)
     }
 }
@@ -66,19 +70,6 @@ async function forwardRequest(req: Request, res: Response) {
     }
 }
 
-app.use((req,res,next)=>{
-    // This is treated specially as SSE are a bit different, as far as I understand
-    if (req.path.startsWith("/subscribe/")) {
-        next()
-    } else {
-        validateRequest(req, res, (req, res) => forwardRequest(req, res))
-    }
-})
-
-app.listen(configuration.port, () => {
-    console.log(`MPS Auth Proxy listening at http://localhost:${configuration.port}`)
-})
-
 function eventsHandler(request, response, next) {
     const headers = {
         'Content-Type': 'text/event-stream',
@@ -107,8 +98,33 @@ function eventsHandler(request, response, next) {
     });
 }
 
-app.get('/subscribe/:key', eventsHandler);
+function main() {
+    const options = stdio.getopt({
+        'conffile': {key: 'c', args: 1, description: 'Path to the configuration file', default: "auth-conf.json"},
+    });
+    if (!fs.existsSync(options.conffile)) {
+        console.error("Configuration file not found:", options.conffile)
+        process.exit(1)
+    }
 
-const router = express.Router();
+    app.use(bodyParser.text({limit: '50mb', extended: true}));
+    configuration = loadConfiguration(options.conffile)
+    app.use((req,res,next)=>{
+        // This is treated specially as SSE are a bit different, as far as I understand
+        if (req.path.startsWith("/subscribe/")) {
+            next()
+        } else {
+            configuration.log(`processing ${req.method} request to ${req.path}`)
+            validateRequest(req, res, (req, res) => forwardRequest(req, res))
+        }
+    })
 
-app.use(router);
+    app.listen(configuration.port, () => {
+        configuration.log(`Modelix Auth Proxy listening at http://localhost:${configuration.port}`)
+    })
+    app.get('/subscribe/:key', eventsHandler);
+    const router = express.Router();
+    app.use(router);
+}
+
+main()
