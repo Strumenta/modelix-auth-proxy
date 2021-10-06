@@ -1,4 +1,4 @@
-import {TokenValidator, UserInfoTokenValidator} from "./token_validators";
+import {loadTokenValidator, TokenValidator, UserInfoTokenValidator} from "./token_validators";
 const fs = require('fs');
 
 const DEFAULT_PORT = 3000
@@ -37,20 +37,7 @@ export function loadConfiguration(confFilePath: string) : Configuration {
     if (tokenValidatorData == null) {
         throw new Error(`Key tokenValidator not present in ${confFilePath}`)
     }
-    const tokenValidatorType = tokenValidatorData["type"];
-    if (tokenValidatorType == null) {
-        throw new Error(`Key tokenValidator.type not present in ${confFilePath}. Valid values are: UserInfoTokenValidator`)
-    }
-    let tokenValidator: TokenValidator
-    if (tokenValidatorType === "UserInfoTokenValidator") {
-        const address = tokenValidatorData["address"]
-        if (address == null) {
-            throw new Error(`Key tokenValidator.address not present in ${confFilePath}`)
-        }
-        tokenValidator = new UserInfoTokenValidator(address)
-    } else {
-        throw new Error(`Unknown token validator type: ${tokenValidatorType}`)
-    }
+    const tokenValidator: TokenValidator = loadTokenValidator(confFilePath, tokenValidatorData)
     const configuration = new Configuration(port, tokenValidator, mmsURL)
     const verbose = confdata["verbose"]
     if (verbose !== undefined) {
