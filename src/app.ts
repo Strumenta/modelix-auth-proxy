@@ -21,7 +21,7 @@ type RequestProcessing = (req: Request, res: Response, validationResult: Validat
  */
 async function validateRequest(req: Request, res: Response,
                                validatedRequestProcessing: RequestProcessing,
-                               rejectedRequestProcessing: RequestProcessing = (req, res, validRes)=> res.status(403)) : Promise<void> {
+                               rejectedRequestProcessing: RequestProcessing = (req, res, validRes)=> res.status(403).send()) : Promise<void> {
     const authorizationHeader = req.header("Authorization")
     if (authorizationHeader == null || !(authorizationHeader.startsWith("Bearer "))) {
         configuration.log(`  authorization header not present or not valid -> rejecting`)
