@@ -39,34 +39,66 @@ async function validateRequest(req: Request, res: Response,
     }
 }
 
-async function forwardRequest(req: Request, res: Response, validationResult: ValidationResult) {
-    const forwardURL = `${configuration.mmsURL}${req.path}`
-    let response : Promise<AxiosResponse<any>>
-    if (req.method === 'GET') {
-        response = axios.get(forwardURL)
-    } else if (req.method === 'PUT') {
-        response = axios.put(forwardURL)
-    } else if (req.method === 'POST') {
-        response = axios.post(forwardURL)
-    } else {
-        throw new Error(`Unsupported method ${req.method}`)
+function prepareRequestForModelServer(externalRequest: Request) : Promise<AxiosResponse<any>> {
+    const forwardURL = `${configuration.mmsURL}${externalRequest.path}`
+    const modelServerRequestConfig = {headers:{}}
+    // data
+    const originalRequestData = externalRequest.body
+    // content-type
+    const originalRequestContentType = externalRequest.headers['Content-Type']
+    if (originalRequestContentType != null) {
+        modelServerRequestConfig.headers['Content-Type'] = originalRequestContentType
     }
-    response.then(resMss => {
+    // character encoding
+    const originalRequestCharset = externalRequest.headers['Accept-Charset']
+    if (originalRequestCharset != null) {
+        modelServerRequestConfig.headers['Accept-Charset'] = originalRequestCharset
+    }
+
+    let modelServerResponse : Promise<AxiosResponse<any>>
+    if (externalRequest.method === 'GET') {
+        modelServerResponse = axios.get(forwardURL, modelServerRequestConfig)
+    } else if (externalRequest.method === 'PUT') {
+        modelServerResponse = axios.put(forwardURL, originalRequestData, modelServerRequestConfig)
+    } else if (externalRequest.method === 'POST') {
+        modelServerResponse = axios.post(forwardURL, originalRequestData, modelServerRequestConfig)
+    } else {
+        throw new Error(`Unsupported method ${externalRequest.method}`)
+    }
+    return modelServerResponse
+}
+
+async function forwardRequest(externalRequest: Request, externalResponse: Response,
+                              validationResult: ValidationResult) {
+    const modelServerResponse : Promise<AxiosResponse<any>> = prepareRequestForModelServer(externalRequest)
+
+    modelServerResponse.then(resMss => {
         let body = resMss.data
         if (typeof body == "number") {
             body = body.toString();
         }
         configuration.log(`  received body: ${body} (type: ${typeof body})`)
         if (validationResult.name != null) {
-            res.header("X-Forwarded-For", validationResult.name);
+            externalResponse.header("X-Forwarded-For", validationResult.name);
         }
         if (validationResult.email != null) {
-            res.header("X-Forwarded-Email", validationResult.email);
+            externalResponse.header("X-Forwarded-Email", validationResult.email);
         }
-        res.status(200).send(body)
+        if (resMss.headers['Content-Type'] != null) {
+            externalResponse.setHeader('Content-Type', resMss.headers['Content-Type'])
+        }
+        if (resMss.headers['Accept-Charset'] != null) {
+            externalResponse.setHeader('Accept-Charset', resMss.headers['Accept-Charset'])
+        }
+        externalResponse.status(200).send(body)
     })
     .catch(error => {
-        console.error(error)
+        if (error.response) {
+            configuration.log(`  got ${error.response.status} from the server`)
+            externalResponse.status(error.response.status).send(error.response.data)
+        } else {
+            console.error(error)
+        }
     })
 }
 
