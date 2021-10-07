@@ -1,9 +1,0 @@
-{
-  "port": 3400,
-  "tokenValidator": {
-    "type": "UserInfoTokenValidator",
-    "address": "https://www.googleapis.com/oauth2/v3/userinfo"
-  },
-  "verbose": true,
-  "mmsURL": "https://dsl-modelix.siginet.lu"
-}
